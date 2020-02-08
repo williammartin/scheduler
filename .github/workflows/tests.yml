@@ -1,0 +1,55 @@
+name: Run Tests
+on: [push, pull_request]
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:10.8
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: storyscript
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+      sqitch:
+        image: storyscript/database
+        env:
+          DATABASE_URL: db:pg://postgres:postgres@postgres/storyscript
+          PGOPTIONS: "-c storyscript.graphql_authenticator_username=storyscript-ci -c storyscript.graphql_authenticator_password=storyscript-ci-pwd"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - uses: actions/setup-go@v1
+        with:
+          go-version: "1.13"
+
+      - name: Get ginkgo
+        run: go get github.com/onsi/ginkgo/ginkgo
+        env:
+          GOPATH: /home/runner/work/auth/go
+          GOBIN: /home/runner/work/auth/go/bin
+
+      - name: Run Tests
+        run:  /home/runner/work/auth/go/bin/ginkgo -r
+        env:
+          GOFLAGS: -mod=vendor
+          ACCEPTANCE_EMAIL: ${{ secrets.ACCEPTANCE_EMAIL }}
+          ACCEPTANCE_USERNAME: ${{ secrets.ACCEPTANCE_USERNAME }}
+          ACCEPTANCE_PASSWORD: ${{ secrets.ACCEPTANCE_PASSWORD }}
+          ACCEPTANCE_OTP_SECRET: ${{ secrets.ACCEPTANCE_OTP_SECRET }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          TEST_DB_USER: postgres
+          TEST_DB_PASSWORD: postgres
+          TEST_DB_HOST: localhost:${{ job.services.postgres.ports[5432] }}
+          TEST_DB_NAME: storyscript
+          JWT_SIGNING_KEY: secret
+          DEFAULT_REDIRECT_URI: http://localhost:3000/healthcheck
+          DOMAIN: localhost
+          ALLOWLIST_TOKEN: token
